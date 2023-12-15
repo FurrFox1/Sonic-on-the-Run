@@ -1,4 +1,7 @@
 import pygame
+import sqlite3
+import json
+
 from pygame.locals import *
 from Menu_Boton import *
 from Player import  *
@@ -12,6 +15,10 @@ class Game:
         pygame.display.set_caption("Sonic on the Run")
         icono = pygame.image.load("./GUI/LogoSonic vector.png")
         pygame.display.set_icon(icono)
+        
+        # Conectar a la base de datos SQLite
+        self.conn = sqlite3.connect('scores.db')
+        self.create_scores_table()
 
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -23,6 +30,26 @@ class Game:
         self.pausa = False
         self.spawn()
         self.run_main_menu()
+
+
+    def create_scores_table(self):
+    # Crear una tabla si no existe
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                score INTEGER NOT NULL
+            )
+        ''')
+        self.conn.commit()
+    
+    def save_score_to_db(self, name):
+        # Guardar el nombre y la puntuación en la base de datos SQLite
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT INTO scores (name, score) VALUES (?, ?)', (name, self.player.score))
+        self.conn.commit()
+
 
     def spawn(self):
         self.fondo = pygame.transform.scale(pygame.image.load("./Background/paper_texture_green_hill.png"), (WIDTH, HEIGHT))
@@ -281,8 +308,11 @@ class Game:
                         show_victory_screen = False
                     elif event.type == MOUSEBUTTONDOWN:
                         if menu_button.rect.collidepoint(event.pos):
+                            # Solicitar al usuario que ingrese su nombre por consola
+                            name = input("Ingresa tu nombre de usuario: ")
                             show_victory_screen = False
-                            self.save_score()
+                            self.save_score_to_db(name)
+                            self.save_score(name)
                             self.run_main_menu()
                             return
 
@@ -292,7 +322,7 @@ class Game:
                 buttons_group.draw(self.screen)  # Dibujar botón
                 pygame.display.flip()
                 self.clock.tick(FPS)
-
+                
             # Limpiar el grupo de botones después de salir del bucle
             buttons_group.empty()
 
@@ -347,10 +377,8 @@ class Game:
     #----------------------------Guardado de Score--------------------------------
 
 
-    def save_score(self):
+    def save_score(self, name):
         # Guardar el puntaje en un archivo JSON
-        import json
-
         # Cargar el archivo JSON existente
         try:
             with open("scores.json", "r") as file:
@@ -359,7 +387,7 @@ class Game:
             scores = []
 
         # Agregar el puntaje actual al archivo
-        scores.append({"score": self.player.score})
+        scores.append({"name": name, "score": self.player.score})
 
         # Guardar los puntajes actualizados en el archivo
         with open("scores.json", "w") as file:
